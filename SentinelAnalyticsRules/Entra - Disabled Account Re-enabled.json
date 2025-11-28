@@ -1,0 +1,55 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/1fc8ffe6-1308-4eb3-a51f-0eda4840ec2a')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/1fc8ffe6-1308-4eb3-a51f-0eda4840ec2a')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-11-01-preview",
+            "properties": {
+                "displayName": "Entra - Disabled Account Re-enabled",
+                "description": "",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "AuditLogs\r\n| where OperationName =~ \"Enable account\"\r\n| where Result =~ \"success\"\r\n| mv-expand InitiatedBy\r\n| mv-expand TargetResources\r\n| project TimeGenerated, TargetResources.userPrincipalName, InitiatedBy.user.userPrincipalName, CorrelationId",
+                "queryFrequency": "PT8H",
+                "queryPeriod": "PT8H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}

@@ -1,0 +1,86 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/b83c3b5c-56f5-4bb5-9e88-5098b75095b5')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/b83c3b5c-56f5-4bb5-9e88-5098b75095b5')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "OnPrem - Detecting Macro Invoking ShellBrowserWindow COM Objects",
+                "description": "This query detects a macro invoking ShellBrowserWindow COM Objects evade naive parent/child Office detection rules.\nRef: https://blog.menasec.net/2019/02/threat-hunting-doc-with-macro-invoking.html",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "Event\n | where EventLog == \"Microsoft-Windows-Sysmon/Operational\" and EventID==1\n | parse EventData with * 'Image\">' Image \"<\" * 'CommandLine\">' CommandLine \"<\" * 'ParentImage\">' ParentImage \"<\" *\n | where ParentImage has \"svchost.exe\" and Image has \"rundll32.exe\" and CommandLine has \"{c08afd90-f2a1-11d1-8455-00a0c91f3880}\"\n | parse EventData with * 'ProcessGuid\">' ProcessGuid \"<\" * 'Description\">' Description \"<\" * 'CurrentDirectory\">' CurrentDirectory \"<\" * 'User\">' User \"<\" * 'LogonGuid\">' LogonGuid \"<\" * 'ParentProcessGuid\">' ParentProcessGuid \"<\" * 'ParentImage\">' ParentImage \"<\" * 'ParentCommandLine\">' ParentCommandLine \"<\" * 'ParentUser\">' ParentUser \"<\" *\n | summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by EventID, Computer, User, ParentImage, ParentProcessGuid, ParentCommandLine, ParentUser, Image, ProcessGuid, CommandLine, Description",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "LateralMovement"
+                ],
+                "techniques": [
+                    "T1021"
+                ],
+                "alertRuleTemplateName": "e7470b35-0128-4508-bfc9-e01cfb3c2eb7",
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Process",
+                        "fieldMappings": [
+                            {
+                                "identifier": "CommandLine",
+                                "columnName": "CommandLine"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "Computer"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "User"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

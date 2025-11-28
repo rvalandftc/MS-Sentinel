@@ -1,0 +1,57 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/48107a4d-ba25-4600-b169-781c4373b49b')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/48107a4d-ba25-4600-b169-781c4373b49b')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-11-01-preview",
+            "properties": {
+                "displayName": "Entra - Potential MFA Spam",
+                "description": "Detect when a user denies MFA several times within a single sign in attempt and then completes MFA. This could be a sign of someone trying to spam your users with MFA prompts until they accept.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "//Select your threshold of how many times a user denies MFA before accepting\r\nlet threshold=5;\r\nSigninLogs\r\n| project\r\n    TimeGenerated,\r\n    AuthenticationRequirement,\r\n    AuthenticationDetails,\r\n    UserPrincipalName,\r\n    CorrelationId\r\n//Include only authentications that require MFA\r\n| where AuthenticationRequirement == \"multiFactorAuthentication\"\r\n//Extend authentication result description\r\n| mv-expand todynamic(AuthenticationDetails)\r\n| extend AuthResult = tostring(parse_json(AuthenticationDetails).authenticationStepResultDetail)\r\n//Find results that include both denined and completed MFA\r\n| where AuthResult in (\"MFA completed in Azure AD\", \"MFA denied; user declined the authentication\",\"MFA denied; user did not respond to mobile app notification\",\"MFA successfully completed\")\r\n//Create a list of completed and denied MFA challenges per correlation id\r\n| summarize ['Result Types']=make_list(AuthResult) by CorrelationId, UserPrincipalName\r\n//Ensure the list includes both completed and denied MFA challenges\r\n| where ['Result Types'] has_any (\"MFA completed in Azure AD\",\"MFA successfully completed\") and ['Result Types'] has_any (\"MFA denied; user declined the authentication\", \"MFA denied; user did not respond to mobile app notification\")\r\n| mv-expand ['Result Types'] to typeof(string)\r\n//Expand and count all the denied challenges and then return CorrelationId's where the MFA denied count is greater or equal to your threshold\r\n| where ['Result Types'] has_any (\"MFA denied; user declined the authentication\",\"MFA denied; user did not respond to mobile app notification\")\r\n| summarize ['Denied MFA Count']=count()by ['Result Types'], CorrelationId, UserPrincipalName\r\n| where ['Denied MFA Count'] >= threshold",
+                "queryFrequency": "PT4H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "InitialAccess"
+                ],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}

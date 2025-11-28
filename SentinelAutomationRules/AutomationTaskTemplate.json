@@ -1,0 +1,108 @@
+{
+    "id": "test",
+    "title": "test",
+    "description": "testcwint",
+    "iconType": "Event",
+    "skuType": "Consumption",
+    "data": {
+        "definition": {
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+                "$connections": {
+                    "defaultValue": {},
+                    "type": "Object"
+                }
+            },
+            "triggers": {
+                "Microsoft_Sentinel_incident": {
+                    "type": "ApiConnectionWebhook",
+                    "inputs": {
+                        "body": {
+                            "callback_url": "@{listCallbackUrl()}"
+                        },
+                        "host": {
+                            "connection": {
+                                "name": "@parameters('$connections')['azuresentinel_1']['connectionId']"
+                            }
+                        },
+                        "path": "/incident-creation"
+                    }
+                }
+            },
+            "actions": {
+                "Condition": {
+                    "actions": {},
+                    "runAfter": {
+                        "HTTP": [
+                            "Succeeded"
+                        ]
+                    },
+                    "else": {
+                        "actions": {
+                            "Send_an_email_(V2)": {
+                                "runAfter": {},
+                                "type": "ApiConnection",
+                                "inputs": {
+                                    "body": {
+                                        "Body": "<p>Failed to create ticket for incident ID @{triggerBody()?['object']?['properties']?['incidentNumber']}.<br>\n<br>\n@{triggerBody()?['object']?['properties']?['incidentUrl']}<br>\n<br>\nWorkspace - @{triggerBody()?['workspaceInfo']}.</p>",
+                                        "Importance": "High",
+                                        "Subject": "MSS CW Failure - @{triggerBody()?['object']?['properties']?['incidentNumber']} | @{triggerBody()?['object']?['properties']?['title']}",
+                                        "To": "secops@ftcsolar.com"
+                                    },
+                                    "host": {
+                                        "connection": {
+                                            "name": "@parameters('$connections')['office365']['connectionId']"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/v2/Mail"
+                                }
+                            }
+                        }
+                    },
+                    "expression": {
+                        "and": [
+                            {
+                                "contains": [
+                                    "@body('HTTP')",
+                                    "201"
+                                ]
+                            },
+                            {
+                                "equals": [
+                                    "@outputs('HTTP')['statusCode']",
+                                    200
+                                ]
+                            }
+                        ]
+                    },
+                    "type": "If"
+                },
+                "HTTP": {
+                    "runAfter": {},
+                    "type": "Http",
+                    "inputs": {
+                        "body": "@triggerBody()",
+                        "method": "POST",
+                        "uri": "https://mssentinelrobot.azurewebsites.net/api/CreateCWTicket?code=BiG0w9cZRA-QTVZJ_sRw2vhTht5O08JHRtsC_K_6GT71AzFu50pdpA=="
+                    }
+                }
+            },
+            "outputs": {}
+        },
+        "parameters": {},
+        "connections": {
+            "azuresentinel_1": {
+                "id": "/subscriptions/0000-0000/providers/Microsoft.Web/locations/australiasoutheast/managedApis/azuresentinel",
+                "connectionId": "",
+                "connectionName": ""
+            },
+            "office365": {
+                "id": "/subscriptions/0000-0000/providers/Microsoft.Web/locations/australiasoutheast/managedApis/office365",
+                "connectionId": "",
+                "connectionName": ""
+            }
+        }
+    }
+}
