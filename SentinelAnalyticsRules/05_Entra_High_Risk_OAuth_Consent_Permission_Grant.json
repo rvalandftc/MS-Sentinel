@@ -37,7 +37,6 @@
                 "subTechniques": [
                     "T1098.003"
                 ],
-                "alertRuleTemplateName": null,
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
@@ -81,8 +80,7 @@
                         ]
                     }
                 ],
-                "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.0"
+                "sentinelEntitiesMappings": null
             }
         }
     ]

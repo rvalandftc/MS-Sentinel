@@ -40,7 +40,6 @@
                     "T1218.010",
                     "T1218.011"
                 ],
-                "alertRuleTemplateName": null,
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
@@ -84,8 +83,7 @@
                         ]
                     }
                 ],
-                "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.0"
+                "sentinelEntitiesMappings": null
             }
         }
     ]
