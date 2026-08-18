@@ -1,0 +1,87 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/66b23233-0f8a-49d4-9e93-1e1207d57d49')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/66b23233-0f8a-49d4-9e93-1e1207d57d49')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Conditional Access - Policy Disabled or Deleted",
+                "description": "[Added 2026 threat-model expansion] Detects deletion of a Conditional Access policy or an update that appears to set policy state to disabled. This complements the existing exclusion-change rule with a direct defense-evasion signal.",
+                "severity": "High",
+                "enabled": false,
+                "query": "AuditLogs\n| where TimeGenerated >= ago(1h)\n| where Result =~ 'success'\n| where OperationName in~ ('Update conditional access policy','Delete conditional access policy')\n| extend Target=todynamic(TargetResources[0]), Modified=tostring(TargetResources[0].modifiedProperties)\n| where OperationName =~ 'Delete conditional access policy' or (Modified has_any ('State','state') and Modified has_any ('disabled','Disabled'))\n| extend PolicyName=tostring(Target.displayName), PolicyId=tostring(Target.id),\n         InitiatingUserPrincipalName=tostring(InitiatedBy.user.userPrincipalName), InitiatingAppName=tostring(InitiatedBy.app.displayName),\n         InitiatingIpAddress=tostring(coalesce(InitiatedBy.user.ipAddress,InitiatedBy.app.ipAddress))\n| project TimeGenerated, OperationName, PolicyName, PolicyId, InitiatingUserPrincipalName, InitiatingAppName, InitiatingIpAddress, Modified, CorrelationId\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "DefenseEvasion"
+                ],
+                "techniques": [
+                    "T1562"
+                ],
+                "subTechniques": [
+                    "T1562.001"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "PolicyName": "PolicyName",
+                    "PolicyId": "PolicyId",
+                    "OperationName": "OperationName"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "InitiatingUserPrincipalName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "InitiatingIpAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

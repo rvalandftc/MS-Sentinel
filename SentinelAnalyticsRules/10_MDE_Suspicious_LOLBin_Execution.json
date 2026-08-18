@@ -1,0 +1,92 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/b587d1de-1a6c-4788-9ca6-2226ef45c26d')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/b587d1de-1a6c-4788-9ca6-2226ef45c26d')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "MDE - Suspicious LOLBin Network or Script Execution",
+                "description": "[Added 2026 threat-model expansion] Detects common signed-binary proxy execution and download patterns involving mshta, regsvr32, certutil, bitsadmin, and rundll32. These behaviors are frequently used for payload staging and defense evasion.",
+                "severity": "High",
+                "enabled": false,
+                "query": "DeviceProcessEvents\n| where TimeGenerated >= ago(1h)\n| where FileName in~ ('mshta.exe','regsvr32.exe','certutil.exe','bitsadmin.exe','rundll32.exe')\n| extend CL=tolower(ProcessCommandLine), FN=tolower(FileName)\n| where (FN == 'mshta.exe' and CL has_any ('http://','https://','javascript:','vbscript:'))\n    or (FN == 'regsvr32.exe' and CL has 'scrobj.dll' and CL has_any ('http://','https://'))\n    or (FN == 'certutil.exe' and CL has_any ('-urlcache','-verifyctl') and CL has_any ('http://','https://'))\n    or (FN == 'bitsadmin.exe' and CL has '/transfer' and CL has_any ('http://','https://'))\n    or (FN == 'rundll32.exe' and CL has_any ('javascript:','mshtml,runhtmlapplication'))\n| extend HostName=tostring(split(DeviceName,'.')[0]), UserPrincipalName=AccountUpn\n| project TimeGenerated, DeviceName, HostName, UserPrincipalName, FileName, FolderPath, ProcessCommandLine,\n          InitiatingProcessFileName, InitiatingProcessCommandLine, SHA1, SHA256\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Execution",
+                    "DefenseEvasion",
+                    "CommandAndControl"
+                ],
+                "techniques": [
+                    "T1218",
+                    "T1105"
+                ],
+                "subTechniques": [
+                    "T1218.005",
+                    "T1218.010",
+                    "T1218.011"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "FileName": "FileName",
+                    "CommandLine": "ProcessCommandLine",
+                    "InitiatingProcess": "InitiatingProcessFileName"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

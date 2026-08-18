@@ -1,0 +1,85 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/34e92f44-237f-4549-87ac-da0febe8e362')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/34e92f44-237f-4549-87ac-da0febe8e362')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "AI - Azure AI and Cognitive Services Account Keys Listed or Regenerated",
+                "description": "[Added 2026 threat-model expansion] Detects successful Azure control-plane operations that list or regenerate keys for Microsoft.CognitiveServices accounts, including Azure AI/Foundry and Azure OpenAI-backed resources. Review whether key-based authentication was expected and whether the caller is authorized.",
+                "severity": "High",
+                "enabled": false,
+                "query": "AzureActivity\n| where TimeGenerated >= ago(1h)\n| where OperationNameValue has 'Microsoft.CognitiveServices/accounts/'\n| where OperationNameValue has_any ('listKeys/action','regenerateKey/action')\n| where ActivityStatusValue in~ ('Success','Succeeded')\n| extend KeyOperation=case(OperationNameValue has 'listKeys/action','ListKeys',OperationNameValue has 'regenerateKey/action','RegenerateKey','Other')\n| project TimeGenerated, Caller, CallerIpAddress, KeyOperation, OperationNameValue, ResourceId, ResourceGroup, SubscriptionId,\n          ActivityStatusValue, CorrelationId, Properties_d\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "CredentialAccess"
+                ],
+                "techniques": [
+                    "T1552"
+                ],
+                "subTechniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "KeyOperation": "KeyOperation",
+                    "ResourceId": "ResourceId",
+                    "OperationName": "OperationNameValue"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "Caller"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "CallerIpAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

@@ -1,0 +1,89 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/63779cf1-2b1d-4459-914a-dc4590e2fb0e')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/63779cf1-2b1d-4459-914a-dc4590e2fb0e')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Azure - Privileged RBAC Role Assignment Created",
+                "description": "[Added 2026 threat-model expansion] Detects successful Azure control-plane role assignments for Owner, Contributor, User Access Administrator, or Role Based Access Control Administrator. These assignments materially increase resource or access-management privileges.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let PrivilegedRoleIds=dynamic([\n '8e3af657-a8ff-443c-a75c-2fe8c4bcb635',\n 'b24988ac-6180-42a0-ab88-20f7382dd24c',\n '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9',\n 'f58310d9-a9f6-439a-9e8d-f62e7b41a168'\n]);\nAzureActivity\n| where TimeGenerated >= ago(1h)\n| where OperationNameValue =~ 'Microsoft.Authorization/roleAssignments/write'\n| where ActivityStatusValue in~ ('Success','Succeeded')\n| extend Props=todynamic(Properties_d), PropsText=tostring(Properties_d)\n| extend RoleDefinitionId=tolower(coalesce(tostring(Props.roleDefinitionId),extract(@'roleDefinitionId[^0-9a-fA-F]+([0-9a-fA-F-]{36})',1,PropsText))),\n         PrincipalId=coalesce(tostring(Props.principalId),extract(@'principalId[^0-9a-fA-F]+([0-9a-fA-F-]{36})',1,PropsText))\n| extend RoleGuid=tolower(tostring(split(RoleDefinitionId,'/')[-1]))\n| where RoleGuid in (PrivilegedRoleIds)\n| extend RoleName=case(RoleGuid=='8e3af657-a8ff-443c-a75c-2fe8c4bcb635','Owner',\n                       RoleGuid=='b24988ac-6180-42a0-ab88-20f7382dd24c','Contributor',\n                       RoleGuid=='18d7d88d-d35e-4fb5-a5c3-7773c20a72d9','User Access Administrator',\n                       RoleGuid=='f58310d9-a9f6-439a-9e8d-f62e7b41a168','Role Based Access Control Administrator','Privileged')\n| project TimeGenerated, Caller, CallerIpAddress, PrincipalId, RoleName, RoleGuid, ResourceId, SubscriptionId, ResourceGroup, CorrelationId\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Persistence",
+                    "PrivilegeEscalation"
+                ],
+                "techniques": [
+                    "T1098"
+                ],
+                "subTechniques": [
+                    "T1098.003"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "PrincipalId": "PrincipalId",
+                    "RoleName": "RoleName",
+                    "RoleGuid": "RoleGuid",
+                    "ResourceId": "ResourceId"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "Caller"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "CallerIpAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

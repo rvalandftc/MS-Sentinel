@@ -1,0 +1,89 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/5e70d9fd-ee57-40e1-bc03-ca474dbe0f88')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/5e70d9fd-ee57-40e1-bc03-ca474dbe0f88')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Entra Agent ID - Unusual Agentic Sign-In from New IP or Country",
+                "description": "[Added 2026 threat-model expansion] Detects agent-related Entra sign-ins from an IP or country not observed for the same agent identity during the previous 14 days, or sign-ins marked medium/high risk.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let CurrentWindow=1h;\nlet Lookback=14d;\nlet AllSignins = materialize(\n    union isfuzzy=true SigninLogs, AADNonInteractiveUserSignInLogs, AADServicePrincipalSignInLogs, AADManagedIdentitySignInLogs\n    | extend AgentData=todynamic(column_ifexists('Agent',dynamic({}))), AgentType=tostring(AgentData.agentType), ParentAppId=tostring(AgentData.parentAppId)\n    | where isnotempty(AgentType) and AgentType !~ 'notAgentic'\n    | extend IdentityKey=coalesce(tostring(column_ifexists('UserPrincipalName','')),tostring(column_ifexists('ServicePrincipalId','')),tostring(column_ifexists('Identity',''))),\n             IPAddress=tostring(column_ifexists('IPAddress','')), Location=tostring(column_ifexists('Location','')),\n             RiskLevelDuringSignIn=tostring(column_ifexists('RiskLevelDuringSignIn','')), RiskState=tostring(column_ifexists('RiskState','')),\n             AppDisplayName=tostring(column_ifexists('AppDisplayName',''))\n);\nlet Historical = AllSignins\n| where TimeGenerated between (ago(Lookback)..ago(CurrentWindow))\n| summarize KnownIPs=make_set(IPAddress,256), KnownCountries=make_set(Location,64) by IdentityKey, AgentType;\nAllSignins\n| where TimeGenerated >= ago(CurrentWindow)\n| join kind=leftouter Historical on IdentityKey, AgentType\n| extend IsNewIP=isempty(tostring(KnownIPs)) or not(set_has_element(KnownIPs,IPAddress)),\n         IsNewCountry=isempty(tostring(KnownCountries)) or not(set_has_element(KnownCountries,Location))\n| where IsNewIP or IsNewCountry or RiskLevelDuringSignIn in~ ('medium','high') or RiskState in~ ('atRisk','confirmedCompromised')\n| project TimeGenerated, IdentityKey, AgentType, ParentAppId, IPAddress, Location, AppDisplayName, RiskLevelDuringSignIn, RiskState, IsNewIP, IsNewCountry\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "P14D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "InitialAccess"
+                ],
+                "techniques": [
+                    "T1078"
+                ],
+                "subTechniques": [
+                    "T1078.004"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "AgentType": "AgentType",
+                    "ParentAppId": "ParentAppId",
+                    "Application": "AppDisplayName",
+                    "IsNewIP": "IsNewIP",
+                    "IsNewCountry": "IsNewCountry"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "IdentityKey"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IPAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

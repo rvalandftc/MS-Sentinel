@@ -1,0 +1,90 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/505a58a2-7f0c-4352-a095-b9030be06c00')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/505a58a2-7f0c-4352-a095-b9030be06c00')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Entra - Unusual Successful Device Code Authentication",
+                "description": "[Added 2026 threat-model expansion] Detects successful device-code authentication that originates from an IP not previously seen for that user in device-code flows, or is marked medium/high risk. Device-code phishing is increasingly used to obtain cloud sessions without traditional password capture.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let CurrentWindow=1h;\nlet Lookback=14d;\nlet Historical =\n    SigninLogs\n    | where TimeGenerated between (ago(Lookback)..ago(CurrentWindow))\n    | where ResultType == '0' and AuthenticationProtocol =~ 'deviceCode'\n    | summarize KnownIPs=make_set(IPAddress,256), KnownCountries=make_set(Location,64) by UserPrincipalName;\nSigninLogs\n| where TimeGenerated >= ago(CurrentWindow)\n| where ResultType == '0' and AuthenticationProtocol =~ 'deviceCode'\n| join kind=leftouter Historical on UserPrincipalName\n| extend IsNewIP = isempty(tostring(KnownIPs)) or not(set_has_element(KnownIPs, IPAddress)),\n         IsNewCountry = isempty(tostring(KnownCountries)) or not(set_has_element(KnownCountries, Location))\n| where IsNewIP or IsNewCountry or RiskLevelDuringSignIn in~ ('medium','high') or RiskState in~ ('atRisk','confirmedCompromised')\n| extend Name=tostring(split(UserPrincipalName,'@')[0]), UPNSuffix=tostring(split(UserPrincipalName,'@')[1])\n| project TimeGenerated, UserPrincipalName, Name, UPNSuffix, UserId, IPAddress, Location, AppDisplayName, AppId,\n          AuthenticationProtocol, ClientAppUsed, UserAgent, RiskLevelDuringSignIn, RiskState, IsNewIP, IsNewCountry, SessionId, OriginalTransferMethod\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "P14D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "InitialAccess",
+                    "CredentialAccess"
+                ],
+                "techniques": [
+                    "T1078"
+                ],
+                "subTechniques": [
+                    "T1078.004"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "Application": "AppDisplayName",
+                    "RiskLevel": "RiskLevelDuringSignIn",
+                    "RiskState": "RiskState",
+                    "IsNewIP": "IsNewIP",
+                    "IsNewCountry": "IsNewCountry"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IPAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

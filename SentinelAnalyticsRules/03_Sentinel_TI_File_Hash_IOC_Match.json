@@ -1,0 +1,99 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/b1434028-f774-4b96-9ca8-86996fae567f')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/b1434028-f774-4b96-9ca8-86996fae567f')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Sentinel TI - Active File Hash IOC Match Against MDE Process and File Activity",
+                "description": "[Added 2026 threat-model expansion] Correlates active STIX MD5/SHA1/SHA256 indicators with Defender for Endpoint process and file telemetry. This catches newly imported malicious hashes without editing the analytics rule.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let TI = materialize(\n    ThreatIntelIndicators\n    | summarize arg_max(TimeGenerated, *) by Id\n    | where IsDeleted == false and IsActive == true\n    | where isempty(ValidUntil) or ValidUntil > now()\n    | where ObservableKey has 'file:hashes'\n    | extend HashAlgorithm=case(ObservableKey has 'SHA-256','SHA256', ObservableKey has 'SHA-1','SHA1', ObservableKey has 'MD5','MD5',''),\n             FileHashValue=tolower(tostring(ObservableValue))\n    | where isnotempty(HashAlgorithm) and isnotempty(FileHashValue)\n    | project IndicatorId=Id, HashAlgorithm, FileHashValue, Confidence, IndicatorName=tostring(Data.name), IndicatorDescription=tostring(Data.description), Tags\n);\nlet HashEvents = union isfuzzy=true\n(\n    DeviceProcessEvents\n    | where TimeGenerated >= ago(1h)\n    | extend Hashes=pack_array(pack('Algorithm','SHA256','Value',tolower(SHA256)), pack('Algorithm','SHA1','Value',tolower(SHA1)), pack('Algorithm','MD5','Value',tolower(MD5)))\n    | mv-expand Hashes\n    | extend HashAlgorithm=tostring(Hashes.Algorithm), FileHashValue=tostring(Hashes.Value)\n    | where isnotempty(FileHashValue)\n    | project TimeGenerated, DataSource='DeviceProcessEvents', DeviceName, FileName, FolderPath, ProcessCommandLine,\n              UserPrincipalName=AccountUpn, HashAlgorithm, FileHashValue\n),\n(\n    DeviceFileEvents\n    | where TimeGenerated >= ago(1h)\n    | extend Hashes=pack_array(pack('Algorithm','SHA256','Value',tolower(SHA256)), pack('Algorithm','SHA1','Value',tolower(SHA1)), pack('Algorithm','MD5','Value',tolower(MD5)))\n    | mv-expand Hashes\n    | extend HashAlgorithm=tostring(Hashes.Algorithm), FileHashValue=tostring(Hashes.Value)\n    | where isnotempty(FileHashValue)\n    | project TimeGenerated, DataSource='DeviceFileEvents', DeviceName, FileName, FolderPath, ProcessCommandLine=InitiatingProcessCommandLine,\n              UserPrincipalName=InitiatingProcessAccountUpn, HashAlgorithm, FileHashValue\n);\nHashEvents\n| join kind=inner TI on HashAlgorithm, FileHashValue\n| project TimeGenerated, DataSource, DeviceName, FileName, FolderPath, ProcessCommandLine, UserPrincipalName,\n          HashAlgorithm, FileHashValue, IndicatorId, Confidence, IndicatorName, IndicatorDescription, Tags\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Execution"
+                ],
+                "techniques": [
+                    "T1204"
+                ],
+                "subTechniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "DataSource": "DataSource",
+                    "IndicatorId": "IndicatorId",
+                    "IndicatorName": "IndicatorName",
+                    "Confidence": "Confidence"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "FileHash",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Algorithm",
+                                "columnName": "HashAlgorithm"
+                            },
+                            {
+                                "identifier": "Value",
+                                "columnName": "FileHashValue"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

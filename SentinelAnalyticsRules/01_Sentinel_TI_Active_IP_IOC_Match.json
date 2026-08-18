@@ -1,0 +1,97 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/1fa272bd-f049-4f1a-adb7-56931b5460e5')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/1fa272bd-f049-4f1a-adb7-56931b5460e5')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Sentinel TI - Active IP IOC Match Across MDE, Entra and Azure Activity",
+                "description": "[Added 2026 threat-model expansion] Correlates active STIX IP indicators from ThreatIntelIndicators with recent Defender for Endpoint network events, Entra sign-ins, and Azure control-plane activity. Replaces brittle static campaign IP lists with current feed-driven intelligence.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let TI = materialize(\n    ThreatIntelIndicators\n    | summarize arg_max(TimeGenerated, *) by Id\n    | where IsDeleted == false\n    | where IsActive == true\n    | where isempty(ValidUntil) or ValidUntil > now()\n    | where ObservableKey in~ ('ipv4-addr:value','ipv6-addr:value','network-traffic:src_ref.value','network-traffic:dst_ref.value')\n    | extend MatchedIP = tostring(ObservableValue)\n    | where isnotempty(MatchedIP)\n    | project IndicatorId=Id, MatchedIP, Confidence, IndicatorName=tostring(Data.name), IndicatorDescription=tostring(Data.description), Tags\n);\nlet Events = union isfuzzy=true\n(\n    DeviceNetworkEvents\n    | where TimeGenerated >= ago(1h)\n    | where isnotempty(RemoteIP)\n    | project EventTime=TimeGenerated, DataSource='DeviceNetworkEvents', MatchedIP=RemoteIP,\n              DeviceName, UserPrincipalName=InitiatingProcessAccountUpn, Caller='', Action=ActionType, RemoteUrl\n),\n(\n    SigninLogs\n    | where TimeGenerated >= ago(1h)\n    | where isnotempty(IPAddress)\n    | project EventTime=TimeGenerated, DataSource='SigninLogs', MatchedIP=IPAddress,\n              DeviceName=tostring(DeviceDetail.displayName), UserPrincipalName, Caller='', Action=ResultType, RemoteUrl=AppDisplayName\n),\n(\n    AzureActivity\n    | where TimeGenerated >= ago(1h)\n    | where isnotempty(CallerIpAddress)\n    | project EventTime=TimeGenerated, DataSource='AzureActivity', MatchedIP=CallerIpAddress,\n              DeviceName='', UserPrincipalName='', Caller, Action=OperationNameValue, RemoteUrl=ResourceId\n);\nEvents\n| join kind=inner TI on MatchedIP\n| project TimeGenerated=EventTime, DataSource, MatchedIP, DeviceName, UserPrincipalName, Caller, Action, RemoteUrl,\n          IndicatorId, Confidence, IndicatorName, IndicatorDescription, Tags\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "CommandAndControl",
+                    "InitialAccess"
+                ],
+                "techniques": [
+                    "T1071",
+                    "T1078"
+                ],
+                "subTechniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "DataSource": "DataSource",
+                    "IndicatorId": "IndicatorId",
+                    "IndicatorName": "IndicatorName",
+                    "Confidence": "Confidence"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "MatchedIP"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

@@ -1,0 +1,89 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/d465ffc5-fa3c-4446-8b26-5a52edb50edb')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/d465ffc5-fa3c-4446-8b26-5a52edb50edb')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Entra - High-Risk OAuth Consent or Application Permission Grant",
+                "description": "[Added 2026 threat-model expansion] Detects successful application consent or permission grants containing high-impact Microsoft Graph/M365 permissions commonly abused for persistence, mailbox access, data collection, or privilege escalation.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let HighRiskPermissions = dynamic([\n  'RoleManagement.ReadWrite.Directory','Directory.ReadWrite.All','Application.ReadWrite.All','AppRoleAssignment.ReadWrite.All',\n  'Mail.ReadWrite','Mail.ReadWrite.All','Mail.Send','Files.ReadWrite.All','Sites.ReadWrite.All','Sites.FullControl.All',\n  'Group.ReadWrite.All','User.ReadWrite.All','offline_access'\n]);\nAuditLogs\n| where TimeGenerated >= ago(1h)\n| where Result =~ 'success'\n| where Category =~ 'ApplicationManagement'\n| where OperationName in~ ('Consent to application','Add delegated permission grant','Add app role assignment to service principal')\n| mv-expand TargetResource=TargetResources\n| extend TargetAppName=tostring(TargetResource.displayName), TargetAppId=tostring(TargetResource.id),\n         PermissionEvidence=strcat(tostring(TargetResource.modifiedProperties),' ',tostring(AdditionalDetails))\n| where PermissionEvidence has_any (HighRiskPermissions)\n| extend InitiatingUserPrincipalName=tostring(InitiatedBy.user.userPrincipalName),\n         InitiatingAadUserId=tostring(InitiatedBy.user.id), InitiatingAppName=tostring(InitiatedBy.app.displayName),\n         InitiatingAppServicePrincipalId=tostring(InitiatedBy.app.servicePrincipalId),\n         InitiatingIpAddress=tostring(coalesce(InitiatedBy.user.ipAddress,InitiatedBy.app.ipAddress))\n| project TimeGenerated, OperationName, TargetAppName, TargetAppId, InitiatingUserPrincipalName, InitiatingAadUserId,\n          InitiatingAppName, InitiatingAppServicePrincipalId, InitiatingIpAddress, PermissionEvidence, CorrelationId\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Persistence",
+                    "PrivilegeEscalation",
+                    "Collection"
+                ],
+                "techniques": [
+                    "T1098"
+                ],
+                "subTechniques": [
+                    "T1098.003"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "OperationName": "OperationName",
+                    "TargetAppName": "TargetAppName",
+                    "TargetAppId": "TargetAppId"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "InitiatingUserPrincipalName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "InitiatingIpAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

@@ -1,0 +1,86 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/bf6786d5-4581-43c1-9a8d-ffd18caf4168')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/bf6786d5-4581-43c1-9a8d-ffd18caf4168')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "MDE - Ransomware Recovery Inhibition Commands",
+                "description": "[Added 2026 threat-model expansion] Detects destructive recovery-inhibition commands used by ransomware operators, including shadow-copy deletion, backup catalog deletion, and boot/recovery configuration changes.",
+                "severity": "High",
+                "enabled": false,
+                "query": "DeviceProcessEvents\n| where TimeGenerated >= ago(1h)\n| extend CL=tolower(ProcessCommandLine), FN=tolower(FileName)\n| where (FN == 'vssadmin.exe' and CL has 'delete' and CL has 'shadows')\n    or (FN == 'wmic.exe' and CL has 'shadowcopy' and CL has 'delete')\n    or (FN == 'wbadmin.exe' and CL has 'delete' and CL has 'catalog')\n    or (FN == 'bcdedit.exe' and (CL has 'recoveryenabled' or CL has 'bootstatuspolicy'))\n    or (FN in ('powershell.exe','pwsh.exe') and CL has_any ('win32_shadowcopy','disable-computerrestore') and CL has_any ('delete','remove','disable'))\n| summarize StartTime=min(TimeGenerated), EndTime=max(TimeGenerated), CommandCount=count(), Commands=make_set(ProcessCommandLine,20),\n            Processes=make_set(FileName,10), UserPrincipalName=any(AccountUpn) by DeviceName, bin(TimeGenerated,15m)\n| project TimeGenerated, StartTime, EndTime, DeviceName, UserPrincipalName, CommandCount, Processes, Commands\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Impact"
+                ],
+                "techniques": [
+                    "T1490",
+                    "T1486"
+                ],
+                "subTechniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "CommandCount": "CommandCount",
+                    "Processes": "Processes",
+                    "Commands": "Commands"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

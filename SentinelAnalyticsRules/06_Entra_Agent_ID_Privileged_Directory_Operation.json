@@ -1,0 +1,90 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/03807caf-5533-4ef8-8ba2-d1acf2662a36')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/03807caf-5533-4ef8-8ba2-d1acf2662a36')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Entra Agent ID - Privileged Directory Operation by Agent Identity",
+                "description": "[Added 2026 threat-model expansion] Detects Microsoft Entra Agent ID identities performing high-impact directory operations such as role assignment, application consent/credentials, or Conditional Access modification. This adds control coverage for autonomous/agentic identities introduced into Entra.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let HighImpactOps = dynamic([\n 'Add member to role','Add eligible member to role','Consent to application','Add delegated permission grant',\n 'Add app role assignment to service principal','Add service principal credentials','Certificates and secrets management',\n 'Add conditional access policy','Update conditional access policy','Delete conditional access policy'\n]);\nAuditLogs\n| where TimeGenerated >= ago(1h)\n| extend AppAgentType=tostring(InitiatedBy.app.agentType), UserAgentType=tostring(InitiatedBy.user.agentType),\n         AgentType=coalesce(AppAgentType,UserAgentType), BlueprintId=tostring(InitiatedBy.app.blueprintId)\n| where AgentType in~ ('agenticApp','agenticAppInstance','agentIdentityBlueprintPrincipal','agentIDuser')\n| where OperationName in~ (HighImpactOps) or (Category =~ 'RoleManagement' and OperationName has_any ('role','member'))\n| extend InitiatingIdentity=coalesce(tostring(InitiatedBy.user.userPrincipalName),tostring(InitiatedBy.app.displayName)),\n         InitiatingIpAddress=tostring(coalesce(InitiatedBy.user.ipAddress,InitiatedBy.app.ipAddress)),\n         Target=tostring(TargetResources[0].displayName), TargetId=tostring(TargetResources[0].id), TargetAgentType=tostring(TargetResources[0].agentType)\n| project TimeGenerated, OperationName, Category, Result, AgentType, BlueprintId, InitiatingIdentity, InitiatingIpAddress,\n          Target, TargetId, TargetAgentType, CorrelationId\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Persistence",
+                    "PrivilegeEscalation",
+                    "DefenseEvasion"
+                ],
+                "techniques": [
+                    "T1098"
+                ],
+                "subTechniques": [
+                    "T1098.003"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "AgentType": "AgentType",
+                    "BlueprintId": "BlueprintId",
+                    "OperationName": "OperationName",
+                    "Target": "Target"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "InitiatingIdentity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "InitiatingIpAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}

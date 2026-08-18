@@ -1,0 +1,105 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/ae12fd34-13ee-4c68-abf4-0f3109ce20eb')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/ae12fd34-13ee-4c68-abf4-0f3109ce20eb')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Sentinel TI - Active Domain and URL IOC Match Against MDE Network Activity",
+                "description": "[Added 2026 threat-model expansion] Correlates active STIX domain and URL indicators with Defender for Endpoint DeviceNetworkEvents. This provides continuously refreshed domain/URL IOC matching instead of fixed campaign lists.",
+                "severity": "High",
+                "enabled": false,
+                "query": "let TI = materialize(\n    ThreatIntelIndicators\n    | summarize arg_max(TimeGenerated, *) by Id\n    | where IsDeleted == false and IsActive == true\n    | where isempty(ValidUntil) or ValidUntil > now()\n    | where ObservableKey in~ ('domain-name:value','url:value')\n    | extend IOCType = iff(ObservableKey =~ 'domain-name:value','Domain','URL'), IOCValue=tolower(tostring(ObservableValue))\n    | where isnotempty(IOCValue)\n    | project IndicatorId=Id, IOCType, IOCValue, Confidence, IndicatorName=tostring(Data.name), IndicatorDescription=tostring(Data.description), Tags\n);\nlet Net = materialize(\n    DeviceNetworkEvents\n    | where TimeGenerated >= ago(1h)\n    | where isnotempty(RemoteUrl)\n    | extend RemoteValue=tolower(tostring(RemoteUrl))\n    | extend RemoteHost=tolower(iif(RemoteValue startswith 'http://' or RemoteValue startswith 'https://', tostring(parse_url(RemoteValue).Host), tostring(split(RemoteValue,'/')[0])))\n    | project TimeGenerated, DeviceName, RemoteIP, RemoteUrl, RemoteValue, RemoteHost, InitiatingProcessFileName, InitiatingProcessCommandLine, UserPrincipalName=InitiatingProcessAccountUpn\n);\nlet DomainMatches =\n    Net\n    | join kind=inner (TI | where IOCType == 'Domain') on $left.RemoteHost == $right.IOCValue;\nlet UrlMatches =\n    Net\n    | join kind=inner (TI | where IOCType == 'URL') on $left.RemoteValue == $right.IOCValue;\nunion DomainMatches, UrlMatches\n| project TimeGenerated, DeviceName, RemoteIP, RemoteUrl, UserPrincipalName, InitiatingProcessFileName, InitiatingProcessCommandLine,\n          IOCType, IOCValue, IndicatorId, Confidence, IndicatorName, IndicatorDescription, Tags\n",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT1H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "CommandAndControl"
+                ],
+                "techniques": [
+                    "T1071"
+                ],
+                "subTechniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {
+                    "IOCType": "IOCType",
+                    "IOCValue": "IOCValue",
+                    "IndicatorId": "IndicatorId",
+                    "IndicatorName": "IndicatorName",
+                    "Confidence": "Confidence"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "RemoteIP"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "URL",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Url",
+                                "columnName": "RemoteUrl"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.0"
+            }
+        }
+    ]
+}
